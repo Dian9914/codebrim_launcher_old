@@ -1,6 +1,8 @@
 #!/bin/bash
 
-python ./download_dataset.py <URL>
+while read url; do
+    wget $url
+done < urls.txt
 
 jar xvf codebrim.zip
 

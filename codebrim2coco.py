@@ -3,7 +3,6 @@ import argparse
 from os import walk, rename, remove
 import os.path as osp
 import xml.etree.ElementTree as ET
-import shutil
 
 import mmcv
 import numpy as np
@@ -253,9 +252,9 @@ def reorganice(devkit_path):
         
         # guardamos las imagenes y notaciones en el directorio correspondiente
         img_d_path = osp.join(devkit_path, f'{split}/images/{img}')
-        shutil.copy(img_o_path,img_d_path)
+        rename(img_o_path,img_d_path)
         ann_d_path = osp.join(devkit_path, f'{split}/annotations/{ann}')
-        shutil.copy(ann_o_path,ann_d_path)
+        rename(ann_o_path,ann_d_path)
 
         # cuando hayamos repartido el 80%, cambiamos a validacion
         cntr = cntr + 1
