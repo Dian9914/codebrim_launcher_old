@@ -1,7 +1,7 @@
 #!/bin/bash
 
 while read url; do
-    wget $url
+    wget $url -O ./codebrim.zip
 done < urls.txt
 
 jar xvf codebrim.zip

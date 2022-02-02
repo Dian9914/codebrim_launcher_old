@@ -85,7 +85,6 @@ def parse_xml(args):
 def cvt_annotations(devkit_path, split, out_dir, out_file):
     # obtenemos las anotaciones del split correspondiente
     ann_names = next(walk(osp.join(devkit_path, f'{split}/annotations/')), (None, None, []))[2] 
-    print(ann_names)
     ann_paths = [
         osp.join(devkit_path, f'{split}/annotations/{ann_name}')
         for ann_name in ann_names
@@ -95,7 +94,6 @@ def cvt_annotations(devkit_path, split, out_dir, out_file):
         osp.join(devkit_path,f'{split}/images/{img_name}') for img_name in img_names
     ]
     annotations = []
-    print(osp.join(devkit_path, f'{split}/images/'))
     part_annotations = mmcv.track_progress(parse_xml,
                                             list(zip(ann_paths, img_o_paths, img_names)))
     annotations.extend(part_annotations)
@@ -244,11 +242,11 @@ def reorganice(devkit_path):
         img_o_path = osp.join(devkit_path, f'images/{img}')
 
         # revisamos que las imagenes esten correctas
-        '''if str(mmcv.imread(img_o_path).shape) != str(np.array(Image.open(img_o_path)).shape):
+        if str(mmcv.imread(img_o_path).shape) != str(np.array(Image.open(img_o_path)).shape):
             print(f'The image {img_o_path} is wrong! Fixing it... ')
             image = cv2.imread(img_o_path)
             image = cv2.rotate(image, ROTATE_90_CLOCKWISE)
-            image = cv2.imwrite(img_o_path, image)'''
+            image = cv2.imwrite(img_o_path, image)
         
         # guardamos las imagenes y notaciones en el directorio correspondiente
         img_d_path = osp.join(devkit_path, f'{split}/images/{img}')
