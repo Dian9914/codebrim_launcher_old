@@ -1,8 +1,9 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import argparse
-from os import walk
+from os import walk, rename, remove
 import os.path as osp
 import xml.etree.ElementTree as ET
+import shutil
 
 import mmcv
 import numpy as np
@@ -12,23 +13,19 @@ from PIL import Image
 import json
 import numpy as np
 
-from natsort import natsorted, ns
+import cv2
+from cv2 import ROTATE_90_CLOCKWISE
+
+import random
 
 def parse_xml(args):
-    xml_path, img_path, img_name = args
+    ann_path, img_path, img_name = args
     
-    tree = ET.parse(xml_path)
+    tree = ET.parse(ann_path)
     root = tree.getroot()
     size = root.find('size')
-    # some images are bad annotated and have the width and height
-    # switched. We need to check this and fix it or the net wont train
-    if str(mmcv.imread(img_path).shape) != str(np.array(Image.open(img_path)).shape):
-        print(f'The image {img_name} is wrong! Fixing it...')
-        h = int(size.find('width').text)
-        w = int(size.find('height').text)
-    else:
-        w = int(size.find('width').text)
-        h = int(size.find('height').text)
+    w = int(size.find('width').text)
+    h = int(size.find('height').text)
     bboxes = []
     labels = []
     bboxes_ignore = []
@@ -86,26 +83,33 @@ def parse_xml(args):
     return annotation
 
 
-def cvt_annotations(devkit_path, split, out_file):
-    annotations = []
-    filelist = next(walk(osp.join(devkit_path, f'{split}/annotations/')), (None, None, []))[2] 
-    xml_names = natsorted(filelist, key=lambda y: y.lower())
-    xml_paths = [
-        osp.join(devkit_path, f'{split}/annotations/{xml_name}')
-        for xml_name in xml_names
+def cvt_annotations(devkit_path, split, out_dir, out_file):
+    # obtenemos las anotaciones del split correspondiente
+    ann_names = next(walk(osp.join(devkit_path, f'{split}/annotations/')), (None, None, []))[2] 
+    print(ann_names)
+    ann_paths = [
+        osp.join(devkit_path, f'{split}/annotations/{ann_name}')
+        for ann_name in ann_names
     ]
-    img_names = [ name.replace('.xml','.jpg') for name in xml_names ]
-    img_paths = [
+    img_names = next(walk(osp.join(devkit_path, f'{split}/images/')), (None, None, []))[2] 
+    img_o_paths = [
         osp.join(devkit_path,f'{split}/images/{img_name}') for img_name in img_names
     ]
+    annotations = []
+    print(osp.join(devkit_path, f'{split}/images/'))
     part_annotations = mmcv.track_progress(parse_xml,
-                                            list(zip(xml_paths, img_paths, img_names)))
+                                            list(zip(ann_paths, img_o_paths, img_names)))
     annotations.extend(part_annotations)
     print('Done!')
+    print(f'Moving {split} imgs to new folder...')
+    img_d_paths = [
+        osp.join(out_dir,f'{split}/{img_name}') for img_name in img_names
+    ]
+    for img_o, img_d in zip(img_o_paths,img_d_paths):
+        rename(img_o, img_d)
     if out_file.endswith('json'):
         annotations = cvt_to_coco_json(annotations)
-        #annotations = annotations[:-1] + ',"categories": [{"supercategory": "Background","id": 1,"name": "Background"},{"supercategory": "Crack","id": 2,"name": "Crack"},{"supercategory": "Spallation","id": 3,"name": "Spallation"},{"supercategory": "Efflorescence","id": 4,"name": "Efflorescence"},{"supercategory": "ExposedBars","id": 5,"name": "ExposedBars"},{"supercategory": "CorrosionStain","id": 6,"name": "CorrosionStain"}]}'
-    mmcv.dump(annotations, out_file)
+    mmcv.dump(annotations, osp.join(out_dir,'annotations/'+out_file))
     return annotations
 
 
@@ -210,22 +214,79 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def reorganice(devkit_path):
+    # dividimos el dataset en imagenes para entrenamiento y para validacion y comprobamos que esten correctas
+    print('Checking and moving files to new format... ')
+
+    # borramos .DS_Store
+    try: remove(osp.join(devkit_path,'annotations/.DS_Store'))
+    except: pass
+    
+    # obtenemos los nombres de las anotaciones y sus paths
+    ann_names = next(walk(osp.join(devkit_path, 'annotations/')), (None, None, []))[2] 
+    ann_paths = [
+        osp.join(devkit_path, f'annotations/{ann_name}')
+        for ann_name in ann_names
+    ]
+    # los mezclamos de forma aleatoria para dirigir el 80% de las imagenes anotadas a entrenamiento
+    # y el resto a validacion
+    random.shuffle(ann_paths)
+    n_train = round(len(ann_paths)*0.8)
+
+    # definimos el path donde se guardaran las imagenes para entrenamiento
+    split = 'train'
+    mmcv.mkdir_or_exist(osp.join(devkit_path,f'{split}/images/'))
+    mmcv.mkdir_or_exist(osp.join(devkit_path,f'{split}/annotations/'))
+    cntr = 1
+    for ann_o_path, ann in zip(ann_paths,ann_names):
+        # obtenemos la direccion de la imagen correspondiente a cada anotacion, de este modo
+        # solo tomamos imagenes anotadas
+        img = ann.replace('.xml','.jpg')
+        img_o_path = osp.join(devkit_path, f'images/{img}')
+
+        # revisamos que las imagenes esten correctas
+        '''if str(mmcv.imread(img_o_path).shape) != str(np.array(Image.open(img_o_path)).shape):
+            print(f'The image {img_o_path} is wrong! Fixing it... ')
+            image = cv2.imread(img_o_path)
+            image = cv2.rotate(image, ROTATE_90_CLOCKWISE)
+            image = cv2.imwrite(img_o_path, image)'''
+        
+        # guardamos las imagenes y notaciones en el directorio correspondiente
+        img_d_path = osp.join(devkit_path, f'{split}/images/{img}')
+        shutil.copy(img_o_path,img_d_path)
+        ann_d_path = osp.join(devkit_path, f'{split}/annotations/{ann}')
+        shutil.copy(ann_o_path,ann_d_path)
+
+        # cuando hayamos repartido el 80%, cambiamos a validacion
+        cntr = cntr + 1
+        if cntr == n_train: 
+            split = 'val'
+            mmcv.mkdir_or_exist(osp.join(devkit_path,f'{split}/images/'))
+            mmcv.mkdir_or_exist(osp.join(devkit_path,f'{split}/annotations/'))
+
+
 
 def main():
+    # leemos los argumentos y creamos las carpetas correspondientes
     args = parse_args()
     devkit_path = args.devkit_path
     out_dir = args.out_dir if args.out_dir else devkit_path
     mmcv.mkdir_or_exist(out_dir)
+    mmcv.mkdir_or_exist(osp.join(out_dir,'annotations/'))
 
-    out_fmt = f'.{args.out_format}'
-    if args.out_format == 'coco':
-        out_fmt = '.json'
+    # reorganizamos el dataset repartiendo entre imagenes para entrenamiento y para
+    # validacion. Ademas, arreglamos las imagenes con errores de orientacion y 
+    # purgamos aquellas no anotadas
+    reorganice(devkit_path)
+
+    # conversion de las anotaciones
+    out_fmt = '.json'
     prefix='codebrim'
     for split in ['train', 'val']:
+        mmcv.mkdir_or_exist(osp.join(out_dir,f'{split}'))
         dataset_name = prefix + '_' + split
         print(f'processing {dataset_name} ...')
-        cvt_annotations(devkit_path, split,
-                        osp.join(out_dir, dataset_name + out_fmt))
+        cvt_annotations(devkit_path, split, out_dir, dataset_name + out_fmt)
     print('Done!')
 
 
