@@ -1,14 +1,37 @@
 import cv2
 from cv2 import ROTATE_90_CLOCKWISE
+import json
+import random
 
-path = './data/codebrim_coco/train/image_0000873.jpg'
-bbox = [1997, 520, 1143, 1080]
+for split in ['train','val']:
+        f = open(f'./data/codebrim_coco/annotations/codebrim_{split}.json')
+        ann = json.load(f)
+        for entry in ann['images']:
+                img=entry['file_name']
+                id=entry['id']
+                path = f'./data/codebrim_coco/{split}/{img}'
+                
 
-cv2.namedWindow("bnbox", cv2.WINDOW_NORMAL) 
-image = cv2.imread(path)
-image = cv2.rotate(image, ROTATE_90_CLOCKWISE)
-start_point = (bbox[0], bbox[1])
-end_point = (bbox[0]+bbox[2], bbox[1]+bbox[3])
-image = cv2.rectangle(image, start_point, end_point, (255,0,0), 5)
-cv2.imshow('bnbox',image)
-cv2.waitKey()
+                cv2.namedWindow(f'{split} bnbox', cv2.WINDOW_NORMAL) 
+                image = cv2.imread(path)
+                for note in ann['annotations']:
+                        if note['image_id']==id:
+                                bbox=note['bbox']
+                                category=int(note['category_id'])
+                                if category==0: defect='Background'
+                                elif category==1: defect='Crack'
+                                elif category==2: defect='Spallation'
+                                elif category==3: defect='Efflorescence'
+                                elif category==4: defect='ExposedBars'
+                                elif category==5: defect='CorrosionStain'
+                                else: defect='ups'
+                                start_point = (bbox[0], bbox[1])
+                                end_point = (bbox[0]+bbox[2], bbox[1]+bbox[3])
+                                text_point = (start_point[0],round(bbox[1]+bbox[3]*random.random()))
+                                image = cv2.rectangle(image, start_point, end_point, (255,0,0), 5)
+                                image = cv2.putText(image,defect,text_point,cv2.FONT_HERSHEY_SIMPLEX,3,(255,0,0),5)
+                cv2.imshow(f'{split} bnbox',image)
+                keycode=cv2.waitKey()
+                if keycode==27:
+                        break       
+        
