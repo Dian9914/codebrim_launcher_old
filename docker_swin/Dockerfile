@@ -43,7 +43,7 @@ RUN pip install mmdet==${MMDET}
 RUN cd ~
 
 # MMDETECTION
-RUN git clone https://github.com/SwinTransformer/Swin-Transformer-Object-Detection.git -o mmdetection-swin && \
+RUN git clone https://github.com/Dian9914/mmdetection.git -o mmdetection-swin && \
     cd mmdetection-swin && \
     pip install -r requirements/build.txt && \
     pip install -v -e . && \

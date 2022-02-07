@@ -1,4 +1,4 @@
-_base_ = './mask_rcnn_swin-t-p4-w7_fpn_ms-crop-3x_coco.py'
+_base_ = './swin/mask_rcnn_swin_small_patch4_window7_mstrain_480-800_adamw_3x_coco.py'
 
 # 1. dataset settings
 dataset_type = 'CocoDataset'
